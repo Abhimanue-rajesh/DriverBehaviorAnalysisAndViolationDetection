@@ -40,3 +40,12 @@ To initialize and set up the code base
 ## Data Set
 
 1. To clean the data 
+- *Before cleaning the database change the directory name in the script*
+```bash
+  python data_pre_processing.py
+```
+
+2. To get more data through web scrapping with microsoft edge
+```bash
+  python web_scraping_image.py
+```
