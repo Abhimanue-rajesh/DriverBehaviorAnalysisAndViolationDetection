@@ -5,7 +5,7 @@ import cv2  # Open-Cv
 
 # Create a directory - /data/images
 IMAGES_PATH = os.path.join('data', 'images')
-labels = ['normal', 'drowsy', 'using_mobile', 'distracted']
+labels = ['normal', 'drowsy', 'using_mobile']
 number_imgs = 20
 
 

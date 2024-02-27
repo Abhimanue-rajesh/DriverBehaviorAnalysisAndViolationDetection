@@ -24,7 +24,7 @@ def remove_duplicate_images(duplicates):
         os.remove(duplicate[0])
 
 if __name__ == "__main__":
-    directory_path = 'P:/MachineLearning/DriverBehaviorAnalysisAndViolationDetection/DataSet/WithSeatBeltDistracted'
+    directory_path = 'P:/MachineLearning/DriverBehaviorAnalysisAndViolationDetection/data/images'
     duplicates = find_duplicate_images(directory_path)
 
     if duplicates:
