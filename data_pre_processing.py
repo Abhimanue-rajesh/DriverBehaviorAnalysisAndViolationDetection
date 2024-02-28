@@ -3,7 +3,7 @@ import cv2
 from tqdm import tqdm
 
 # The directory in which all the data is located
-data_directory = 'DataSet'
+data_directory = 'data'
 # Define the wanted extensions
 wanted_image_extension = ['.jpeg', '.jpg', '.bmp', '.png']
 

@@ -74,3 +74,31 @@ pip install -r requirements.txt  # install
 ```bash
 git clone https://github.com/HumanSignal/labelImg.git
 ```
+## Labeling Images
+- Install the required dependencies 
+
+```bash
+pip install pyqt5 lxml --upgrade # installing dependencies
+cd labelImg # change the working directory
+pyrcc5 -o libs/resources.py resources.qrc #Installing other dependencies
+```
+- After installing to label images run 
+```bash
+python labelImg.py
+```
+- Choose the file with the images 
+- Choose the file to output the labels
+- Move right and left with D and A Keys 
+- Mark the areas with the W key 
+
+
+## Train Custom Model 
+
+- Create a custom dataset and label the images 
+- Also Create a dataset.yml file in the yolov5 directory
+
+```bash
+cd yolov5 #Change the directory 
+python train.py --img 320 --batch 10 --epochs 500 --data dataset.yml --weights yolov5s.pt --workers 2
+```
+- Change the batch and epochs as system capabilities.

@@ -15,5 +15,4 @@ hamburger
 cavity
 drowsy
 normal
-d
 using_mobile
