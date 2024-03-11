@@ -24,7 +24,8 @@ def remove_duplicate_images(duplicates):
         os.remove(duplicate[0])
 
 if __name__ == "__main__":
-    directory_path = 'data\Drowsy'
+    directory_path = 'data/Drowsy'
+    print('Finding Duplicates In',directory_path)
     duplicates = find_duplicate_images(directory_path)
 
     if duplicates:
