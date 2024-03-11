@@ -2,7 +2,7 @@
 Driver Behavior Analysis And Violation Detection
 
 
-## Project Initialization 
+## 1. Project Initialization 
 
 To initialize and set up the code base
 
@@ -37,68 +37,38 @@ To initialize and set up the code base
   pip install -r requirements.txt
 ```
 
-## Data Set
+## 2. Data Set
 
-1. To clean the data 
+1. To get more data through web scrapping with microsoft edge
+```bash
+  python web_scraping_image.py
+```
+
+2. To clean the data 
 - *Before cleaning the database change the directory name in the script*
 ```bash
   python data_pre_processing.py
 ```
 
-2. To get more data through web scrapping with microsoft edge
-```bash
-  python web_scraping_image.py
-```
-
-## Installing  Pytorch and Yolo V.5 
-
-1. Installing Pytorch
+3. We will be using parts of this dataset so the paper has to be mentioned in the documentation 
 
 ```bash
-pip3 install torch torchvision torchaudio
+https://github.com/bindujiit/Driver-Drowsiness-Dataset-D3S-
 ```
-2. Cloning Yolo and installing the required libraries
+- Gupta, I., Garg, N., Aggarwal, A., Nepalia, N., & Verma, B. (2018, August). Real-time driver's drowsiness monitoring based on dynamically varying threshold. In 2018 Eleventh International Conference on Contemporary Computing (IC3) (pp. 1-6). IEEE
 
-Clone repo and install requirements.txt in a Python>=3.8.0 environment
+## 3. To test sent email 
+
+- Sign in to gmail account (driverviolation@gmail.com)
+- Open Settings 
+- Ensure that the two step verification is enabled 
+- Search for app password
+- Create an app password 
+- Copy and paste the key to the script
+ 
 ```bash
-git clone https://github.com/ultralytics/yolov5  # clone
-cd yolov5
-pip install -r requirements.txt  # install
+python sent_email.py  
 ```
+## 3. Face_Detection Model 
 
-## Loading the model 
-
-![Loading the model](model_loading.png)
-
-## Cloning a labeling library
-```bash
-git clone https://github.com/HumanSignal/labelImg.git
-```
-## Labeling Images
-- Install the required dependencies 
-
-```bash
-pip install pyqt5 lxml --upgrade # installing dependencies
-cd labelImg # change the working directory
-pyrcc5 -o libs/resources.py resources.qrc #Installing other dependencies
-```
-- After installing to label images run 
-```bash
-python labelImg.py
-```
-- Choose the file with the images 
-- Choose the file to output the labels
-- Move right and left with D and A Keys 
-- Mark the areas with the W key 
-
-
-## Train Custom Model 
-
-- Create a custom dataset and label the images 
-- Also Create a dataset.yml file in the yolov5 directory
-
-```bash
-cd yolov5 #Change the directory 
-python train.py --img 320 --batch 10 --epochs 500 --data dataset.yml --weights yolov5s.pt --workers 2
-```
-- Change the batch and epochs as system capabilities.
+- To Detect the faces and to process the data accordingly we will be using a pre trained model.

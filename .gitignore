@@ -152,3 +152,13 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+#Custom 
+data
+Test_Images
+new_data
+logs
+captured_images
+captured_faces
+UnsortedImageData
+models
