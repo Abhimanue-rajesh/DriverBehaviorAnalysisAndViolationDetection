@@ -5,7 +5,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 import time
 
-ml_model = load_model(os.path.join('models','driver_violation_v1.h5'))
+ml_model = load_model(os.path.join('models','driver_violation_v6.h5'))
 
 # Get a reference to webcam #0 (the default one)
 video_capture = cv2.VideoCapture(0)
@@ -15,16 +15,7 @@ def predict(resized_frame):
     # Your detection code here (assuming ml_model and resized_frame are defined)
     ml_model_result = ml_model.predict(np.expand_dims(resized_frame/255, 0))
     
-    class_labels = ['Drowsy', 'Normal', 'Using Mobile']
-
-    # Display all index and corresponding class labels in a single print statement
-    for index, prob in enumerate(ml_model_result[0]):
-        print(f'Class: {class_labels[index]}, Probability: {prob}')
-
-    # Alternatively, you can find the index with the highest probability
-    index_max = np.argmax(ml_model_result)
-    print(f'Predicted Class: {class_labels[index_max]}, Probability: {ml_model_result[0][index_max]}')
-    time.sleep(5)
+    print(ml_model_result)
 
 while True:
     # Grab a single frame of video
