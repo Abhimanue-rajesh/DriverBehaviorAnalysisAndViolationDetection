@@ -27,11 +27,16 @@ os.makedirs(image_output_directory, exist_ok=True)
 os.makedirs(violation_data_storage, exist_ok=True)
 
 # Initialize counter variable for violations
-violation_counter = 0
+drowsy_mobile_violation_counter = 0
+alcohol_violation = 0 
+over_speed_violation = 0 
+seat_belt_violation = 0
+over_speed_violation = 0 
+alcohol_violation = 0 
+seat_belt_violation = 0
 
 # LCD initialization 
 lcd = CharLCD(i2c_expander='PCF8574', address=0x27, port=1, cols=16, rows=2, dotsize=8)
-
 
 # Initialize the camera to capture images for machine learning models
 pi_camera = Picamera2()
@@ -40,28 +45,25 @@ config["transform"] = libcamera.Transform(hflip=1, vflip=1)
 pi_camera.configure(config)
 pi_camera.start(show_preview=True)
 
-def SentEmail():
-    
-    subject = "Violation Detected by AI Model - Attached Proof"
-    message = "A violation has been detected and the necessary proof has been attached with this email, This is a machine generated message, DO NOT REPLY"
-
+def SendEmail(message,include_attachment=False):
     # Create multipart message
     msg = MIMEMultipart()
-    msg['Subject'] = subject
+    msg['Subject'] = "Violation Detected by AI Model"
     msg['To'] = "abhimanuemvk@gmail.com"
     msg['From'] = "driverviolation@gmail.com"
 
     # Attach message body
     msg.attach(MIMEText(message, 'plain'))
 
-    # Attach files in the directory
-    for filename in os.listdir("violation_data_storage"):
-        filepath = os.path.join("violation_data_storage", filename)
-        if os.path.isfile(filepath):
-            with open(filepath, 'rb') as f:
-                attachment = MIMEImage(f.read())
-                attachment.add_header('Content-Disposition', 'attachment', filename=filename)
-                msg.attach(attachment)
+    if include_attachment == True:
+        # Attach files in the directory
+        for filename in os.listdir("violation_data_storage"):
+            filepath = os.path.join("violation_data_storage", filename)
+            if os.path.isfile(filepath):
+                with open(filepath, 'rb') as f:
+                    attachment = MIMEImage(f.read())
+                    attachment.add_header('Content-Disposition', 'attachment', filename=filename)
+                    msg.attach(attachment)
 
     # Create SMTP session for sending the mail
     gmail = smtplib.SMTP('smtp.gmail.com', 587)
@@ -73,13 +75,14 @@ def SentEmail():
     gmail.send_message(msg)
 
 def CheckViolations():
-    if violation_counter >= 3:
+    if drowsy_mobile_violation_counter >= 3:
         print('3 Violations Detected taking action')
-        SentEmail()
+        message = "A violation has been detected and the necessary proof has been attached with this email, This is a machine generated message, DO NOT REPLY"
+        SendEmail(message, include_attachment=True)
         
 
 def PredictDrowsiness(image_array):
-    global violation_counter
+    global drowsy_mobile_violation_counter
 
     # Converting the image to RGB.
     rgb_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
@@ -101,13 +104,13 @@ def PredictDrowsiness(image_array):
             # Save the image with the generated file name
             cv2.imwrite(image_path, image_array)
             print(f"Violation image saved: {image_path}")
-            violation_counter += 1
+            drowsy_mobile_violation_counter += 1
             CheckViolations()
         else:
             break
     
 def PredictCellPhoneUsage(image, image_array):
-    global violation_counter
+    global drowsy_mobile_violation_counter
 
     # Passing the image to the model to get the prediction
     cell_detection_model_result = cell_detection_model(image)
@@ -127,7 +130,7 @@ def PredictCellPhoneUsage(image, image_array):
             # Save the image with the generated file name
             cv2.imwrite(image_path, image_array)
             print(f"Violation image saved: {image_path}")
-            violation_counter += 1
+            drowsy_mobile_violation_counter += 1
             CheckViolations()
         else:
             break
@@ -151,9 +154,10 @@ def MachineLearningPredictions():
         print('Key Board Interrupt - Breaking Program - Camera')
         pi_camera.close()
 
+wrong_side_violation = 0
 
 def OverTake(start_time):
-
+    global wrong_side_violation
     while True:
         ir_sensor_right = GPIO.input(23)
         current_time = time.perf_counter()      
@@ -173,11 +177,21 @@ def OverTake(start_time):
             lcd.write_string('WRONG SIDE FOR')
             lcd.cursor_pos = (1,0)
             lcd.write_string('MORE THAN 10 SEC')
+            wrong_side_violation += 1
+            if wrong_side_violation >= 3:
+                print('sending email')
+                SendEmail(message="Driver is detected using the wrong line for more than 10 seconds, Times Violated = 3")
             time.sleep(3)
             break
 
+
+
+
 def SensorDataPossessing():
-    
+    global over_speed_violation
+    global alcohol_violation
+    global seat_belt_violation
+
     CLK_PIN = 7   
     DT_PIN = 8    
     SW_PIN = 25   
@@ -236,6 +250,10 @@ def SensorDataPossessing():
                     if counter > 60:
                         lcd.cursor_pos = (1,0)
                         lcd.write_string('Over Speed')
+                        over_speed_violation += 1
+                        if over_speed_violation >=3:
+                            print('sending email')
+                            SendEmail(message="Driver is Over Speeding, Times Violated = 3")
                     else:
                         lcd.cursor_pos = (1,0)
                         lcd.write_string('Normal Speed')
@@ -248,9 +266,12 @@ def SensorDataPossessing():
                     lcd.clear()
                     lcd.cursor_pos = (0,0)
                     lcd.write_string('Alcohol Present!')
+                    alcohol_level += 1
+                    if alcohol_level >= 1:
+                        print('sending email')
+                        SendEmail(message="Driver is detected using alcohol")
                     time.sleep(0.5)
-                else:
-                    lcd.clear()
+                
                     
 
                 if ir_sensor_right == 0 :
@@ -271,10 +292,13 @@ def SensorDataPossessing():
                 lcd.write_string('NOT WEARING')
                 lcd.cursor_pos = (1,3)
                 lcd.write_string('SEAT BELT')
+                seat_belt_violation += 1
+
+                if seat_belt_violation == 3:
+                    print("sending email")
+                    SendEmail(message="Driver Detected not using a seatbelt , Times Violated = 3")
                 time.sleep(0.5)
-                lcd.clear()
             
-            # time.sleep(0.5)
                     
     except KeyboardInterrupt:
         GPIO.cleanup()  # Clean up GPIO on program exit
