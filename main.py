@@ -10,36 +10,53 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 import RPi.GPIO as GPIO
+from RPLCD.i2c import CharLCD
+import threading
 
-# Output directories for the image storage
+# # Loading the Machine Learning Models
+# # Model for Drowsyness detection 
+drowsy_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_d_and_n/runs/train/exp9/weights/last.pt', force_reload=True)
+# # Model for Cell phone detection 
+cell_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
+
+# Creating Output directories for the image storage
 image_output_directory = 'image_output_directory'
 violation_data_storage = 'violation_data_storage'
 
+os.makedirs(image_output_directory, exist_ok=True)
+os.makedirs(violation_data_storage, exist_ok=True)
+
 # Initialize counter variable for violations
-total_violations = 0
+violation_counter = 0
 
-def send_email(email,directory):
-    from_email = "driverviolation@gmail.com"
-    from_password = "kege mleo pruw znbl"
-    to_email = email
+# LCD initialization 
+lcd = CharLCD(i2c_expander='PCF8574', address=0x27, port=1, cols=16, rows=2, dotsize=8)
 
 
-    subject = "Violation Deteced by AI Model"
-    message = "A violation has been detected and the nessesary proof has been attached with this email, This is a machine generated message, DO NOT REPLY"
+# Initialize the camera to capture images for machine learning models
+pi_camera = Picamera2()
+config = pi_camera.create_preview_configuration()
+config["transform"] = libcamera.Transform(hflip=1, vflip=1)
+pi_camera.configure(config)
+pi_camera.start(show_preview=True)
+
+def SentEmail():
+    
+    subject = "Violation Detected by AI Model - Attached Proof"
+    message = "A violation has been detected and the necessary proof has been attached with this email, This is a machine generated message, DO NOT REPLY"
 
     # Create multipart message
     msg = MIMEMultipart()
     msg['Subject'] = subject
-    msg['To'] = to_email
-    msg['From'] = from_email
+    msg['To'] = "abhimanuemvk@gmail.com"
+    msg['From'] = "driverviolation@gmail.com"
 
     # Attach message body
     msg.attach(MIMEText(message, 'plain'))
 
-    # Attach images
     # Attach files in the directory
-    for filename in os.listdir(directory):
-        filepath = os.path.join(directory, filename)
+    for filename in os.listdir("violation_data_storage"):
+        filepath = os.path.join("violation_data_storage", filename)
         if os.path.isfile(filepath):
             with open(filepath, 'rb') as f:
                 attachment = MIMEImage(f.read())
@@ -51,28 +68,28 @@ def send_email(email,directory):
     gmail.ehlo()
     gmail.starttls()
     # Login to gmail account
-    gmail.login(from_email, from_password)
-    # Send mail
+    gmail.login("driverviolation@gmail.com", "kege mleo pruw znbl")
+    # Sending mail
     gmail.send_message(msg)
 
-def check_number_of_violations():
-    if total_violations >= 1:
-        print('Violations limit reach')
-        email = "abhimanuemvk@gmail.com"
-        directory = "violation_data_storage"
-        send_email(email,directory)
+def CheckViolations():
+    if violation_counter >= 3:
+        print('3 Violations Detected taking action')
+        SentEmail()
+        
 
-def check_drowsiness(image_array):
-    global total_violations 
-    # Loading the yolov5 cell_detection_model for cell phone detection
-    drowsy_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_d_and_n/runs/train/exp9/weights/last.pt', force_reload=True)
-    print('Predicting drowsiness with the image.')
-    converted_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB) 
-    results = drowsy_detection_model(converted_image)
-    detections = results.pandas().xyxy[0]
+def PredictDrowsiness(image_array):
+    global violation_counter
 
-    ## Loop through each detections
-    for index, obj in detections.iterrows():
+    # Converting the image to RGB.
+    rgb_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
+    # Passing the rgb image to the model to get the prediction.
+    drowsiness_detection_model_result = drowsy_detection_model(rgb_image)
+    # Get all the detection from the model
+    all_model_detections = drowsiness_detection_model_result.pandas().xyxy[0]
+    
+    # Loop through each detections to check for the name drowsy.
+    for index, obj in all_model_detections.iterrows():
         class_name = obj['name']
 
         if class_name == 'drowsy':
@@ -80,29 +97,25 @@ def check_drowsiness(image_array):
             # Get current timestamp for unique file naming
             timestamp = int(time.time())
             # Generate unique file name using timestamp
-            image_path = os.path.join(violation_data_storage, f"drowsines_{timestamp}_{index}.jpg")
+            image_path = os.path.join(violation_data_storage, f"drowsiness_{timestamp}_{index}.jpg")
             # Save the image with the generated file name
             cv2.imwrite(image_path, image_array)
             print(f"Violation image saved: {image_path}")
-            total_violations += 1
-            check_number_of_violations()
+            violation_counter += 1
+            CheckViolations()
         else:
             break
-
-def check_cell_phone(image, image_array):
-    global total_violations 
-
-    # Loading the yolov5 cell_detection_model for cell phone detection
-    cell_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
-    results = cell_detection_model(image)
-    print('Predicting cell phone usage with the image.')
-    detected_objects = results.pandas().xyxy[0]
     
-    # To store the captured violations
-    os.makedirs(violation_data_storage, exist_ok=True)
-    
-    ## Loop through each detected object
-    for index, obj in detected_objects.iterrows():
+def PredictCellPhoneUsage(image, image_array):
+    global violation_counter
+
+    # Passing the image to the model to get the prediction
+    cell_detection_model_result = cell_detection_model(image)
+    # Get all the detection from the model
+    all_model_detected_objects = cell_detection_model_result.pandas().xyxy[0]
+
+    # Loop through each detected object
+    for index, obj in all_model_detected_objects.iterrows():
         class_name = obj['name']
 
         if class_name == 'cell phone':
@@ -114,165 +127,164 @@ def check_cell_phone(image, image_array):
             # Save the image with the generated file name
             cv2.imwrite(image_path, image_array)
             print(f"Violation image saved: {image_path}")
-            total_violations += 1
-            check_number_of_violations()
+            violation_counter += 1
+            CheckViolations()
         else:
             break
 
-
-def start_camera():
-    pi_camera = Picamera2()
-    config = pi_camera.create_preview_configuration()
-    config["transform"] = libcamera.Transform(hflip=1, vflip=1)
-    pi_camera.configure(config)
-    pi_camera.start(show_preview=True)
-
+def MachineLearningPredictions():
     try:
         while True:
-            print('Capturing Image')
-            image = pi_camera.capture_image('main')
-            image_array = np.array(image)
+            image = pi_camera.capture_image('main') # Capturing Image
+            image_array = np.array(image) # Converting to NP Array 
+            image_path = os.path.join(image_output_directory, "captured_image.jpg") #defining image path
+            cv2.imwrite(image_path, image_array) # Writing image to created directory
 
-            # To store the captured images
-            os.makedirs(image_output_directory, exist_ok=True)
+            # Passing the image and its array to cellphone and prediction drowsiness models
+            PredictDrowsiness(image_array)
+            PredictCellPhoneUsage(image_path, image_array)
 
-            image_path = os.path.join(image_output_directory, "captured_image.jpg")
-            cv2.imwrite(image_path, image_array)
-            print('Temporary image stored to directory')
-            check_cell_phone(image_path, image_array)
-            check_drowsiness(image_array)
-            time.sleep(8)
+            # Sleeping for 10 seconds to reduce cpu load
+            time.sleep(10)
 
     except KeyboardInterrupt:
+        print('Key Board Interrupt - Breaking Program - Camera')
         pi_camera.close()
 
-start_camera()
 
+def OverTake(start_time):
 
-def speed_sensor():
-    print('starting speed sensor!')
-    # Pin numbers on Raspberry Pi
-    CLK_PIN = 7   # GPIO7 connected to the rotary encoder's CLK pin
-    DT_PIN = 8    # GPIO8 connected to the rotary encoder's DT pin
-    SW_PIN = 25   # GPIO25 connected to the rotary encoder's SW pin
+    while True:
+        ir_sensor_right = GPIO.input(23)
+        current_time = time.perf_counter()      
+        elapsed_time = current_time - start_time
+        
+        if ir_sensor_right == 0:
+            lcd.clear()
+            lcd.cursor_pos = (0,1)
+            lcd.write_string('TIMED OVERTAKE')
+            time.sleep(3)
+            break
 
+        if elapsed_time > 10 and ir_sensor_right == 1:
+            print('Time out')
+            lcd.clear()
+            lcd.cursor_pos = (0,1)
+            lcd.write_string('WRONG SIDE FOR')
+            lcd.cursor_pos = (1,0)
+            lcd.write_string('MORE THAN 10 SEC')
+            time.sleep(3)
+            break
+
+def SensorDataPossessing():
+    
+    CLK_PIN = 7   
+    DT_PIN = 8    
+    SW_PIN = 25   
+
+    # Initializing variables
     counter = 0
     CLK_state = 0
     prev_CLK_state = 0
 
-    prev_button_state = GPIO.HIGH
-
     # Configure GPIO pins
     GPIO.setmode(GPIO.BCM)
+
+    # GPIO setup for rotary encoder
     GPIO.setup(CLK_PIN, GPIO.IN)
     GPIO.setup(DT_PIN, GPIO.IN)
     GPIO.setup(SW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+    # GPIO for Alcohol sensor
+    GPIO.setup(18, GPIO.IN)
+
+    # GPIO For seatbelt
+    GPIO.setup(26, GPIO.IN) 
+
+    GPIO.setup(23, GPIO.IN) 
+    GPIO.setup(24, GPIO.IN) 
+
     # Read the initial state of the rotary encoder's CLK pin
     prev_CLK_state = GPIO.input(CLK_PIN)
 
+    right_ir_first_crossing = False
+
     try:
         while True:
-            # Read the current state of the rotary encoder's CLK pin
-            CLK_state = GPIO.input(CLK_PIN)
+            # Initializing input
+            CLK_state = GPIO.input(CLK_PIN) # Rotary Encoder
+            alcohol_level = GPIO.input(18) # Alcohol Sensor
+            
+            seat_belt = GPIO.input(26) # IR for seatbelt
+            
+            ir_sensor_right = GPIO.input(23) # IR Sensor
+            ir_sensor_left = GPIO.input(24) # IR Sensor
+                 
+            
+            if seat_belt == 0:
+                if CLK_state != prev_CLK_state and CLK_state == GPIO.HIGH:
+                    
+                    if GPIO.input(DT_PIN) == GPIO.HIGH:
+                        counter -= 10
+                    else:
+                        counter += 10
+                    
+                    to_display = f'Speed: {counter}'
+                    lcd.clear()
+                    lcd.cursor_pos = (0,0)
+                    lcd.write_string(to_display)
+                    if counter > 60:
+                        lcd.cursor_pos = (1,0)
+                        lcd.write_string('Over Speed')
+                    else:
+                        lcd.cursor_pos = (1,0)
+                        lcd.write_string('Normal Speed')
+                
+                # Save last CLK state
+                prev_CLK_state = CLK_state
 
-            # If the state of CLK is changed, then pulse occurred
-            # React to only the rising edge (from LOW to HIGH) to avoid double count
-            if CLK_state != prev_CLK_state and CLK_state == GPIO.HIGH:
-                # If the DT state is HIGH, the encoder is rotating in counter-clockwise direction
-                # Decrease the counter
-                if GPIO.input(DT_PIN) == GPIO.HIGH:
-                    counter -= 10
+                #alcohol sensor
+                if alcohol_level == 0:
+                    lcd.clear()
+                    lcd.cursor_pos = (0,0)
+                    lcd.write_string('Alcohol Present!')
+                    time.sleep(0.5)
                 else:
-                    # The encoder is rotating in clockwise direction => increase the counter
-                    counter += 10
+                    lcd.clear()
+                    
 
-                if counter >= 60:
-                    print('Over Speed Detected , Slow Down')
-                else:
-                    print('Normal Driving')
+                if ir_sensor_right == 0 :
+                    print('First Ir crossed')
+                    right_ir_first_crossing = True
 
-                print("count:" , counter)
-
-            # Save last CLK state
-            prev_CLK_state = CLK_state
-
-            # State change detection for the button
-            button_state = GPIO.input(SW_PIN)
-            if button_state != prev_button_state:
-                time.sleep(0.01)  # Add a small delay to debounce
-
-            prev_button_state = button_state
-
+                if ir_sensor_left == 0 and right_ir_first_crossing == True:
+                    print('Second Ir crossed')
+                    lcd.clear()
+                    lcd.cursor_pos = (0,3)
+                    lcd.write_string('OVERTAKING!')
+                    start_time = time.perf_counter()
+                    OverTake(start_time)  
+                    
+            else:
+                print('No seat belt')
+                lcd.cursor_pos = (0,2)
+                lcd.write_string('NOT WEARING')
+                lcd.cursor_pos = (1,3)
+                lcd.write_string('SEAT BELT')
+                time.sleep(0.5)
+                lcd.clear()
+            
+            # time.sleep(0.5)
+                    
     except KeyboardInterrupt:
         GPIO.cleanup()  # Clean up GPIO on program exit
+        lcd.close(clear=True)
 
 
-# speed_sensor()
+if __name__ == "__main__":
+    machine_learning_thread = threading.Thread(target=MachineLearningPredictions)
+    sensor_thread = threading.Thread(target= SensorDataPossessing)
 
-def alcohol_sensor():
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(18, GPIO.IN)
-
-    while True:
-        alcohol_level = GPIO.input(18)
-        print(alcohol_level)
-        if alcohol_level == 0:
-            print('Alcohol Presence Detected')
-        elif alcohol_level == 1 :
-            print('No Alcohol Presence')
-
-# alcohol_sensor()
-
-def whiteline_crossing():
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(23, GPIO.IN) 
-    GPIO.setup(24, GPIO.IN)  
-
-    # Initializeing variables
-    right_line_first_crossing_detected = False
-    left_line_first_crossing_detected = False
-    left_line_second_crossing_detected = False
-    vehicle_crossed = False
-
-    try:
-        while True:
-            ir_sensor_right = GPIO.input(23)
-            ir_sensor_left = GPIO.input(24)
-
-            if ir_sensor_right == 0 and vehicle_crossed == False:
-                right_line_first_crossing_detected = True
-                print("Right sensor First")
-
-            if ir_sensor_left == 0 and vehicle_crossed == False:
-                left_line_first_crossing_detected = True
-                print("Left sensor First")
-
-            if right_line_first_crossing_detected and left_line_first_crossing_detected:
-                print('Vehicle Crossed the white line')
-                time_when_crossed = time.perf_counter()
-                vehicle_crossed = True
-                right_line_first_crossing_detected = False
-                left_line_first_crossing_detected = False
-
-            if vehicle_crossed and ir_sensor_left == 0:
-                left_line_second_crossing_detected = True
-                vehicle_crossed = False
-                print("Left sensor second ")
-
-            if left_line_second_crossing_detected and ir_sensor_right == 0:
-                print("Vehicle back on track")
-                time_back_on_track = time.perf_counter()
-                total_time = time_back_on_track - time_when_crossed
-                print(total_time)
-                break
-
-
-            # Sleep for a short duration to avoid CPU hogging
-            time.sleep(0.1)
-
-    except KeyboardInterrupt:
-        GPIO.cleanup()
-
-        
-# whiteline_crossing()
+    machine_learning_thread.start()
+    sensor_thread.start()
+    print('Program Started')
