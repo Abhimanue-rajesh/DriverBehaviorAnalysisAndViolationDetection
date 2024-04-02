@@ -13,10 +13,10 @@ import RPi.GPIO as GPIO
 from RPLCD.i2c import CharLCD
 import threading
 
-# # Loading the Machine Learning Models
-# # Model for Drowsyness detection 
-drowsy_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_d_and_n/runs/train/exp9/weights/last.pt', force_reload=True)
-# # Model for Cell phone detection 
+# Loading the Machine Learning Models
+# Model for Drowsyness detection 
+drowsy_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_d_and_n/runs/train/exp9/weights/last.pt')
+# Model for Cell phone detection 
 cell_detection_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')
 
 # Creating Output directories for the image storage
@@ -183,9 +183,6 @@ def OverTake(start_time):
                 SendEmail(message="Driver is detected using the wrong line for more than 10 seconds, Times Violated = 3")
             time.sleep(3)
             break
-
-
-
 
 def SensorDataPossessing():
     global over_speed_violation
